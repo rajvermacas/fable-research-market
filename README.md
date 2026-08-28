@@ -118,6 +118,41 @@ of CAGR and removes ~52pp of drawdown.
 - The base config's numbers sit inside the plateau, not on a spike: the two
   headline metrics move smoothly along every axis.
 
+## v2 — the pre-registered attempt to improve forward CAGR (PROTOCOL.md)
+
+Could the forward CAGR be improved *without* using the forward window to make
+decisions? A pre-registered protocol (committed before any evaluation, see git
+history) defined three new mechanisms, adopted them on 2000–2021 evidence
+alone — the candidate simulations literally stop at 2021-12-31 — and then
+revealed 2022+ exactly once:
+
+| Config | IS CAGR | IS MaxDD | FW CAGR | FW MaxDD |
+|---|---|---|---|---|
+| v1 (flat frictions) | 31.1% | −24.7% | 13.2% | −18.0% |
+| + realistic friction schedules (C3, adopted on realism) | 30.2% | −24.3% | **13.6%** | −17.3% |
+| + rank-tapered weights (C2, adopted: passed all 4 in-sample rules) = **v2** | **32.3%** | **−23.1%** | 11.5% | −17.0% |
+| defensive winter sleeve (C1, rejected in-sample: DD > 25%) | 31.7% | −26.4% | 12.9% | −20.0% |
+
+**The result is the lesson.** The rank taper passed every in-sample gate —
++2.1pp CAGR, better drawdown, better in all three sub-periods, a clean
+plateau across taper values — and still *subtracted* 2.1pp forward: weight
+concentration in top-ranked names amplifies momentum beta, which the 2024–26
+factor winter punished. The only change that helped forward (+0.4pp) was the
+one adopted on realism rather than performance grounds. The in-sample
+rejection of the sleeve was forward-correct. Averaging all 27 in-sample-
+passing configs (the "plateau portfolio") gives 12.4% forward — no
+combination of compliant configs materially beats the base.
+
+Where forward CAGR actually lives is the capacity scenario: on the deep
+small/micro-cap pool (top-800 turnover), even with a +15bp/side cost
+surcharge, the v2 rules deliver **26.0% forward CAGR at −18.8% drawdown**
+(31.2% / −23.1% in-sample). But in-sample the 800-pool ranks *below* the
+500-pool (33.9%), so no in-sample process selects it — choosing it is a
+judgment call that small-cap momentum keeps paying, made with the worst
+survivorship-bias and capacity caveats in the dataset, not an evidence-based
+optimization. Per the protocol, v2 stands as adopted; nothing was un-adopted
+after seeing forward results.
+
 ## What to be honest about
 
 1. **Survivorship bias (the big one).** Yahoo only serves currently listed

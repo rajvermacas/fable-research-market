@@ -477,6 +477,50 @@ a { color: var(--accent); }
 
 <section>
   <div class="sec-head">
+    <div class="eyebrow">v2 · pre-registered</div>
+    <h2>The attempt to improve forward CAGR</h2>
+    <p>Could 2022+ CAGR be improved without peeking at 2022+? A pre-registered
+    protocol (<span class="mono">PROTOCOL.md</span>, committed before any evaluation)
+    defined three new mechanisms, gated adoption on 2000–2021 evidence alone — the
+    candidate simulations stop at 2021-12-31 — then revealed the forward window
+    exactly once:</p>
+  </div>
+  <div class="tablecard">
+    <table>
+      <thead><tr><th>Config</th><th>Adoption decision (in-sample only)</th><th class="num">IS CAGR</th><th class="num">IS DD</th><th class="num">FW CAGR</th><th class="num">FW DD</th></tr></thead>
+      <tbody>
+        <tr><td>v1, flat frictions</td><td>reference</td><td class="num">31.1%</td><td class="num">−24.7%</td><td class="num">13.2%</td><td class="num">−18.0%</td></tr>
+        <tr><td>+ realistic friction schedules</td><td>adopted — realism, not performance</td><td class="num">30.2%</td><td class="num">−24.3%</td><td class="num pos">13.6%</td><td class="num">−17.3%</td></tr>
+        <tr><td><strong>+ rank-tapered weights = v2</strong></td><td>adopted — passed all four in-sample rules</td><td class="num pos">32.3%</td><td class="num pos">−23.1%</td><td class="num neg">11.5%</td><td class="num">−17.0%</td></tr>
+        <tr><td>defensive winter sleeve</td><td>rejected — in-sample DD &gt; 25%</td><td class="num">31.7%</td><td class="num neg">−26.4%</td><td class="num">12.9%</td><td class="num">−20.0%</td></tr>
+      </tbody>
+    </table>
+    <div class="tnote">The rank taper passed every in-sample gate — +2.1pp CAGR, better drawdown,
+    better in all three sub-periods, a plateau across taper values — and still subtracted 2.1pp
+    forward: rank concentration amplifies momentum beta, which the 2024–26 factor winter punished.
+    The only forward improvement came from the change adopted on realism grounds. The sleeve's
+    in-sample rejection was forward-correct. Averaging all 27 in-sample-passing configs gives
+    12.4% forward. Per protocol, nothing was un-adopted after the reveal.</div>
+  </div>
+  <div class="tablecard">
+    <table>
+      <thead><tr><th>Capacity scenario (v2 rules)</th><th class="num">IS CAGR</th><th class="num">IS DD</th><th class="num">FW CAGR</th><th class="num">FW DD</th></tr></thead>
+      <tbody>
+        <tr><td>Pool 300 (base liquidity)</td><td class="num">32.3%</td><td class="num">−23.1%</td><td class="num">11.5%</td><td class="num">−17.0%</td></tr>
+        <tr><td>Pool 500, +5bp/side surcharge</td><td class="num">33.9%</td><td class="num">−23.2%</td><td class="num">11.8%</td><td class="num">−24.1%</td></tr>
+        <tr><td>Pool 800, +15bp/side surcharge</td><td class="num">31.2%</td><td class="num">−23.1%</td><td class="num pos">26.0%</td><td class="num">−18.8%</td></tr>
+      </tbody>
+    </table>
+    <div class="tnote">Where forward CAGR actually lives: the deep small/micro-cap pool still paid
+    26%/yr in 2022–2026 even after punitive costs. But in-sample the 800-pool ranks <em>below</em>
+    the 500-pool, so no in-sample process selects it — trading it is a judgment call that small-cap
+    momentum persists, taken where survivorship bias and capacity constraints are worst,
+    not an evidence-based optimization.</div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
     <div class="eyebrow">Read before believing</div>
     <h2>Limitations, in order of importance</h2>
   </div>

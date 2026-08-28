@@ -81,6 +81,12 @@ class Params:
     # frictions and cash
     cost_per_side: float = 0.003
     cash_rate: float = 0.06
+    # piecewise schedules ((from_year, value), ...) override the flat values
+    cost_schedule: tuple = ()
+    cash_schedule: tuple = ()
+    # v2 candidates (0 / default = off; see PROTOCOL.md)
+    sleeve_m: int = 0                 # defensive low-vol sleeve size in factor winters
+    taper_k: float = 1.5              # rank taper for weighting="ranklin"
     # testing aids
     reb_offset: int = 0               # rebalance N sessions after month-end
     ew_universe: bool = False         # passive equal-weight of eligible pool
@@ -213,11 +219,20 @@ class Result:
     n_held: pd.Series = None
     gate: pd.Series = None
     vol_scalar: pd.Series = None
+    sleeve_exposure: pd.Series = None
     turnover_total: float = 0.0
     cost_total: float = 0.0
     n_rebalances: int = 0
     n_crash_stops: int = 0
     n_forced_exits: int = 0
+
+
+def _schedule_by_year(years: np.ndarray, flat: float, schedule: tuple) -> np.ndarray:
+    """Per-day value array from ((from_year, value), ...); flat if empty."""
+    out = np.full(len(years), flat, dtype="float64")
+    for from_year, value in sorted(schedule):
+        out[years >= from_year] = value
+    return out
 
 
 def _cap_weights(raw: np.ndarray, cap: float) -> np.ndarray:
@@ -258,7 +273,10 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
                 pd.Series(breadth).rolling(p.breadth_smooth, min_periods=1)
                 .mean().to_numpy()
             )
-    cash_daily = (1.0 + p.cash_rate) ** (1.0 / TRADING_DAYS) - 1.0
+    years = dates.year.to_numpy()
+    cost_rate = _schedule_by_year(years, p.cost_per_side, p.cost_schedule)
+    cash_annual = _schedule_by_year(years, p.cash_rate, p.cash_schedule)
+    cash_daily_arr = (1.0 + cash_annual) ** (1.0 / TRADING_DAYS) - 1.0
 
     def select(d: int, held_idx: np.ndarray):
         """Top-N names and base weights (sum to 1) using close of day d."""
@@ -313,13 +331,41 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
                 break
             if s not in chosen:
                 chosen.append(s)
-        chosen = np.array(chosen[: p.n_stocks], dtype=int)
+        chosen = sorted(chosen[: p.n_stocks], key=rank.get)
+        chosen = np.array(chosen, dtype=int)
         if p.weighting == "equal":
             base = np.full(len(chosen), 1.0 / p.n_stocks)
+        elif p.weighting == "ranklin":
+            raw = np.maximum(p.taper_k * p.n_stocks - np.arange(len(chosen), dtype="float64"), 0.5)
+            base = _cap_weights(raw, p.weight_cap)
         else:
             raw = 1.0 / np.maximum(sig[d][chosen], p.sigma_floor)
             base = _cap_weights(raw, p.weight_cap)
         return chosen, base, mkt.AC[d][chosen].copy()
+
+    def select_def(d: int):
+        """Defensive sleeve: lowest-vol uptrending liquid names, equal weight."""
+        with np.errstate(invalid="ignore", divide="ignore"):
+            elig = (
+                mkt.valid[d]
+                & (mkt.obs_total[d] >= p.min_history)
+                & (mkt.obs252[d] >= p.min_obs_252)
+                & (mkt.C[d] > p.price_floor)
+                & np.isfinite(sig[d])
+            )
+            if sma_stock is not None:
+                elig &= mkt.AC[d] > sma_stock[d]
+            turn = np.where(np.isfinite(mkt.med_turn[d]), mkt.med_turn[d], -1.0)
+            elig &= turn > 0
+            if elig.sum() > p.top_turnover:
+                thresh = np.partition(turn[elig], -p.top_turnover)[-p.top_turnover]
+                elig &= turn >= thresh
+        idx_e = np.where(elig)[0]
+        if len(idx_e) == 0:
+            return np.array([], dtype=int), np.array([]), np.array([])
+        order = idx_e[np.argsort(sig[d][idx_e])][: p.sleeve_m]
+        base = np.full(len(order), 1.0 / p.sleeve_m)
+        return order, base, mkt.AC[d][order].copy()
 
     reb_flags = mkt.is_month_end
     if p.reb_offset:
@@ -328,31 +374,39 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
         reb_flags[src[src < len(dates)]] = True
 
     # ---- state ----
-    w = np.zeros(n_sym)               # actual weights, sum = current exposure
-    base_w = np.zeros(n_sym)          # selection weights, sum <= 1
+    # two books share one risk budget: momentum (scaled by the equity brake)
+    # and, when enabled, a defensive low-vol sleeve holding the braked share
+    w_mom = np.zeros(n_sym)
+    w_def = np.zeros(n_sym)
+    base_mom = np.zeros(n_sym)        # selection weights per book, sum <= 1
+    base_def = np.zeros(n_sym)
     peak_px = np.zeros(n_sym)         # trailing high-water close per position
     equity = 1.0
     sensex_leg = True                 # resolved on first evaluated close
     ewma_var = (0.20 ** 2) / TRADING_DAYS
     eq_cumsum = np.zeros(n_days + 1)  # running sum of log-equity for own-SMA
     brake_on = False
-    pending = None                    # (target_w, entry_updates, forced_w, is_selection)
+    pending = None                    # (t_mom, t_def, entries, forced_w, nb_mom, nb_def)
     res = Result()
     eq_out = np.empty(n_days)
     exp_out = np.empty(n_days)
     nh_out = np.empty(n_days, dtype=int)
     g_out = np.empty(n_days)
     vs_out = np.empty(n_days)
+    sl_out = np.empty(n_days)
 
     for j in range(n_days):
         d = i0 + j
         # 1) accrue returns close(d-1) -> close(d)
+        w = w_mom + w_def
         exposure = float(w.sum())
         cash = 1.0 - exposure
-        port_ret = float(w @ mkt.R[d]) + cash * cash_daily
+        port_ret = float(w @ mkt.R[d]) + cash * cash_daily_arr[d]
         equity *= 1.0 + port_ret
         if 1.0 + port_ret > 1e-9:
-            w = w * (1.0 + mkt.R[d]) / (1.0 + port_ret)
+            w_mom = w_mom * (1.0 + mkt.R[d]) / (1.0 + port_ret)
+            w_def = w_def * (1.0 + mkt.R[d]) / (1.0 + port_ret)
+            w = w_mom + w_def
 
         # update realized-vol estimate of the invested book (or pool proxy)
         exposure = float(w.sum())
@@ -366,17 +420,20 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
 
         # 2) execute pending target at today's close
         if pending is not None:
-            target, entry_updates, forced_w, new_base = pending
-            traded = float(np.abs(target - w).sum())
-            cost = p.cost_per_side * traded
+            t_mom, t_def, entry_updates, forced_w, nb_mom, nb_def = pending
+            traded = float(np.abs((t_mom + t_def) - w).sum())
+            cost = cost_rate[d] * traded
             haircut = forced_w * p.stale_haircut
             equity *= (1.0 - cost) * (1.0 - haircut)
             res.turnover_total += traded
             res.cost_total += cost
-            w = target.copy()
+            w_mom = t_mom.copy()
+            w_def = t_def.copy()
+            w = w_mom + w_def
             for s, px in entry_updates:
                 peak_px[s] = max(peak_px[s], px)
-            base_w = new_base
+            base_mom = nb_mom
+            base_def = nb_def
             pending = None
 
         # 3) signals on close of day d -> execute close of day d+1
@@ -413,27 +470,59 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
             if brake_on:
                 eq_scalar = p.eq_brake_scalar
 
-        desired_e = gate * vol_scalar * eq_scalar
-        if desired_e < 0.05:          # not worth holding a sliver of a book
-            desired_e = 0.0
+        # split the risk budget: brake share goes to the defensive sleeve
+        # (when enabled) instead of cash; market gates still send all to cash
+        e_mom = gate * vol_scalar * eq_scalar
+        e_def = gate * vol_scalar * (1.0 - eq_scalar) if p.sleeve_m else 0.0
+        if e_mom < 0.05:              # not worth holding a sliver of a book
+            e_mom = 0.0
+        if e_def < 0.05:
+            e_def = 0.0
 
-        exposure = float(w.sum())
+        cur_mom = float(w_mom.sum())
+        cur_def = float(w_def.sum())
+        cur_tot = cur_mom + cur_def
         held_idx = np.where(w > 1e-8)[0]
-        base_sum = float(base_w.sum())
 
-        if desired_e <= 1e-9 and exposure > 1e-9:
-            pending = (np.zeros(n_sym), [], 0.0, np.zeros(n_sym))
-        elif desired_e > 1e-9 and (reb_flags[d] or (exposure <= 1e-9)):
-            # monthly rotation, or (re-)entry from cash -> fresh selection
-            chosen, cw, px = select(d, held_idx)
-            new_base = np.zeros(n_sym)
-            if len(chosen):
-                new_base[chosen] = cw
-            target = new_base * desired_e
-            fresh = [(s_, px_) for s_, px_ in zip(chosen, px) if w[s_] <= 1e-8]
+        if (e_mom + e_def) <= 1e-9 and cur_tot > 1e-9:
+            pending = (np.zeros(n_sym), np.zeros(n_sym), [], 0.0,
+                       np.zeros(n_sym), np.zeros(n_sym))
+        elif (e_mom + e_def) > 1e-9 and (
+            reb_flags[d]
+            or (e_mom > 0 and cur_mom <= 1e-9)
+            or (e_def > 0 and cur_def <= 1e-9)
+        ):
+            # monthly rotation, or a book (re-)entering from empty
+            fresh = []
+            if e_mom > 0 and (reb_flags[d] or cur_mom <= 1e-9):
+                chosen, cw, px = select(d, held_idx)
+                nb_mom = np.zeros(n_sym)
+                if len(chosen):
+                    nb_mom[chosen] = cw
+                t_mom = nb_mom * e_mom
+                fresh += [(s_, px_) for s_, px_ in zip(chosen, px) if w[s_] <= 1e-8]
+            elif e_mom > 0 and cur_mom > 1e-9:
+                nb_mom = base_mom
+                t_mom = w_mom * (e_mom / cur_mom)
+            else:
+                nb_mom = np.zeros(n_sym)
+                t_mom = np.zeros(n_sym)
+            if e_def > 0 and (reb_flags[d] or cur_def <= 1e-9):
+                dchosen, dw, dpx = select_def(d)
+                nb_def = np.zeros(n_sym)
+                if len(dchosen):
+                    nb_def[dchosen] = dw
+                t_def = nb_def * e_def
+                fresh += [(s_, px_) for s_, px_ in zip(dchosen, dpx) if w[s_] <= 1e-8]
+            elif e_def > 0 and cur_def > 1e-9:
+                nb_def = base_def
+                t_def = w_def * (e_def / cur_def)
+            else:
+                nb_def = np.zeros(n_sym)
+                t_def = np.zeros(n_sym)
             for s_, _ in fresh:
                 peak_px[s_] = 0.0     # reset stale high-water marks on entry
-            pending = (target, fresh, 0.0, new_base)
+            pending = (t_mom, t_def, fresh, 0.0, nb_mom, nb_def)
             res.n_rebalances += 1
         else:
             # stock-level exits first
@@ -454,31 +543,43 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
                     forced_w = float(w[new_stale].sum())
                     drop[stale_hit] = True
                     res.n_forced_exits += len(new_stale)
-            new_base = base_w.copy()
-            new_base[drop] = 0.0
-            nb_sum = float(new_base.sum())
+            nb_mom = base_mom.copy()
+            nb_mom[drop] = 0.0
+            nb_def = base_def.copy()
+            nb_def[drop] = 0.0
             # a dropped stock's slot stays in cash until the next rotation:
-            # target total = desired exposure scaled by surviving slot share
-            alive_frac = nb_sum / base_sum if base_sum > 1e-9 else 0.0
-            tgt_total = desired_e * alive_frac
-            cur_alive = w.copy()
-            cur_alive[drop] = 0.0
-            cur_total = float(cur_alive.sum())
-            need_exposure_trade = abs(tgt_total - cur_total) >= p.exp_band
+            # per-book target = desired exposure scaled by surviving slot share
+            bs_mom = float(base_mom.sum())
+            bs_def = float(base_def.sum())
+            af_mom = float(nb_mom.sum()) / bs_mom if bs_mom > 1e-9 else 0.0
+            af_def = float(nb_def.sum()) / bs_def if bs_def > 1e-9 else 0.0
+            tgt_mom = e_mom * af_mom
+            tgt_def = e_def * af_def
+            alive_mom = w_mom.copy()
+            alive_mom[drop] = 0.0
+            alive_def = w_def.copy()
+            alive_def[drop] = 0.0
+            ca_mom = float(alive_mom.sum())
+            ca_def = float(alive_def.sum())
+            mismatch = abs(tgt_mom - ca_mom) + abs(tgt_def - ca_def)
+            need_exposure_trade = mismatch >= p.exp_band
             if drop.any() or need_exposure_trade:
-                if need_exposure_trade and cur_total > 1e-9:
-                    target = cur_alive * (tgt_total / cur_total)
-                elif need_exposure_trade and nb_sum > 1e-9:
-                    target = new_base * (tgt_total / nb_sum)
-                else:
-                    target = cur_alive
-                pending = (target, [], forced_w, new_base)
+                def scale_book(alive, ca, tgt, nb):
+                    if need_exposure_trade and ca > 1e-9:
+                        return alive * (tgt / ca)
+                    if need_exposure_trade and float(nb.sum()) > 1e-9:
+                        return nb * (tgt / float(nb.sum()))
+                    return alive.copy()
+                t_mom = scale_book(alive_mom, ca_mom, tgt_mom, nb_mom)
+                t_def = scale_book(alive_def, ca_def, tgt_def, nb_def)
+                pending = (t_mom, t_def, [], forced_w, nb_mom, nb_def)
 
         eq_out[j] = equity
-        exp_out[j] = float(w.sum())
+        exp_out[j] = cur_tot
         nh_out[j] = len(held_idx)
         g_out[j] = gate
         vs_out[j] = vol_scalar
+        sl_out[j] = cur_def
 
     didx = dates[i0:i1]
     res.equity = pd.Series(eq_out, index=didx, name="equity")
@@ -486,4 +587,5 @@ def run(mkt: Market, p: Params, start: str, end: str) -> Result:
     res.n_held = pd.Series(nh_out, index=didx, name="n_held")
     res.gate = pd.Series(g_out, index=didx, name="gate")
     res.vol_scalar = pd.Series(vs_out, index=didx, name="vol_scalar")
+    res.sleeve_exposure = pd.Series(sl_out, index=didx, name="sleeve_exposure")
     return res

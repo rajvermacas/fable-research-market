@@ -1,0 +1,7 @@
+yfinance>=1.7
+pandas>=2.2
+numpy>=1.26
+pyarrow>=14
+matplotlib>=3.8
+requests>=2.31
+curl_cffi>=0.7

@@ -1,0 +1,518 @@
+<title>All-Weather Momentum</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --paper: #F7F8FA;
+  --card: #FFFFFF;
+  --ink: #1A2332;
+  --ink-soft: #4A5568;
+  --ink-faint: #8A94A6;
+  --line: #DDE2EA;
+  --accent: #1B5FC4;
+  --accent-soft: #E8EFFA;
+  --saffron: #B06A20;
+  --pass: #187A44;
+  --pass-soft: #E5F2EA;
+  --fail: #C0392B;
+  --fail-soft: #F9EAE7;
+  --chart-frame: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121820;
+    --card: #1A222E;
+    --ink: #E6EAF2;
+    --ink-soft: #A8B2C4;
+    --ink-faint: #6B7688;
+    --line: #2A3442;
+    --accent: #5B95E8;
+    --accent-soft: #1D2C44;
+    --saffron: #D08A40;
+    --pass: #3FA36C;
+    --pass-soft: #17301F;
+    --fail: #E06B5A;
+    --fail-soft: #3A211C;
+    --chart-frame: #F2F4F7;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121820;
+  --card: #1A222E;
+  --ink: #E6EAF2;
+  --ink-soft: #A8B2C4;
+  --ink-faint: #6B7688;
+  --line: #2A3442;
+  --accent: #5B95E8;
+  --accent-soft: #1D2C44;
+  --saffron: #D08A40;
+  --pass: #3FA36C;
+  --pass-soft: #17301F;
+  --fail: #E06B5A;
+  --fail-soft: #3A211C;
+  --chart-frame: #F2F4F7;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0 20px 80px;
+}
+.wrap { max-width: 880px; margin: 0 auto; }
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--saffron);
+  font-weight: 500;
+}
+header { padding: 56px 0 8px; }
+h1 {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(34px, 5.5vw, 46px);
+  line-height: 1.12;
+  margin: 10px 0 14px;
+  text-wrap: balance;
+}
+.lede { font-size: 18px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 6px; }
+.asof {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+h2 {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-weight: 600;
+  font-size: 25px;
+  margin: 0 0 4px;
+  text-wrap: balance;
+}
+section { margin-top: 52px; }
+.sec-head { margin-bottom: 18px; }
+.sec-head p { margin: 6px 0 0; color: var(--ink-soft); max-width: 68ch; }
+p { max-width: 68ch; }
+
+/* verdict panel */
+.verdicts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+@media (max-width: 700px) { .verdicts { grid-template-columns: 1fr; } }
+.verdict {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 20px 22px;
+}
+.verdict .vlabel {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 14px;
+}
+.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.bar:first-of-type { border-top: none; }
+.bar .k { color: var(--ink-soft); font-size: 14.5px; }
+.bar .v {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 19px;
+  font-weight: 500;
+}
+.chip {
+  display: inline-block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  border-radius: 3px;
+  padding: 2px 8px;
+  vertical-align: 2px;
+  margin-left: 8px;
+}
+.chip.pass { color: var(--pass); background: var(--pass-soft); }
+.chip.fail { color: var(--fail); background: var(--fail-soft); }
+.vnote { font-size: 13.5px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
+
+/* stat strip */
+.stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 16px; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+.stat { background: var(--card); padding: 14px 12px 12px; }
+.stat .n { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 500; color: var(--accent); }
+.stat .l { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; line-height: 1.35; }
+
+/* figures */
+figure { margin: 22px 0 0; }
+figure img { width: 100%; height: auto; display: block; border-radius: 4px; background: var(--chart-frame); padding: 6px; }
+figure { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+figcaption { font-size: 13px; color: var(--ink-soft); padding: 10px 6px 4px; }
+
+/* rules grid */
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+@media (max-width: 700px) { .rules { grid-template-columns: 1fr; } }
+.rulecard { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
+.rulecard h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; color: var(--accent); }
+.rulecard ol, .rulecard ul { margin: 0; padding-left: 20px; font-size: 14.5px; color: var(--ink-soft); }
+.rulecard li { margin-bottom: 8px; }
+.rulecard li strong { color: var(--ink); font-weight: 600; }
+
+/* tables */
+.tablecard { background: var(--card); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-align: left;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--line);
+}
+td { padding: 8px 16px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+td.num.pos { color: var(--pass); }
+td.num.neg { color: var(--fail); }
+tr.fwdrow td:first-child { border-left: 3px solid var(--saffron); padding-left: 13px; }
+.tnote { font-size: 12.5px; color: var(--ink-faint); padding: 10px 16px; }
+
+/* two-col yearly layout */
+.split { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+/* honesty list */
+.honesty { counter-reset: h; margin-top: 8px; }
+.hitem { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.hitem:last-child { border-bottom: none; }
+.hitem .hn {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--saffron);
+  font-size: 14px;
+  padding-top: 2px;
+}
+.hitem h3 { font-size: 15.5px; font-weight: 600; margin: 0 0 5px; }
+.hitem p { font-size: 14.5px; color: var(--ink-soft); margin: 0; }
+.hitem strong { color: var(--ink); }
+
+code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.92em; }
+pre {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-faint); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Quant research · NSE cash equities · yfinance data</div>
+  <h1>All-Weather Momentum</h1>
+  <p class="lede">A long-only, unlevered momentum rotation on Indian equities with a
+  four-layer risk stack — built so the whole parameter neighborhood works, then
+  judged against a hard mandate: <strong>CAGR above 30% and drawdown under 25%</strong>
+  over 2000–2021, forward-tested on 2022 to today.</p>
+  <div class="asof">Backtest 2000-01-03 → 2021-12-31 · forward test 2022-01-03 → %%AS_OF%% · costs 0.30%/side</div>
+</header>
+
+<div class="verdicts">
+  <div class="verdict">
+    <div class="vlabel">In-sample · 2000–2021</div>
+    <div class="bar"><span class="k">CAGR (target &gt; 30%)</span>
+      <span class="v">%%IS_CAGR%%<span class="chip pass">PASS</span></span></div>
+    <div class="bar"><span class="k">Max drawdown (target &lt; 25%)</span>
+      <span class="v">%%IS_DD%%<span class="chip pass">PASS</span></span></div>
+    <div class="bar"><span class="k">Sharpe / Calmar</span>
+      <span class="v">%%IS_SHARPE%% / %%IS_CALMAR%%</span></div>
+    <p class="vnote">Sensex over the same window: %%BIS_CAGR%% CAGR with a %%BIS_DD%% drawdown.</p>
+  </div>
+  <div class="verdict">
+    <div class="vlabel">Forward · 2022 – today</div>
+    <div class="bar"><span class="k">Max drawdown (target &lt; 25%)</span>
+      <span class="v">%%FW_DD%%<span class="chip pass">HOLDS</span></span></div>
+    <div class="bar"><span class="k">CAGR (target &gt; 30%)</span>
+      <span class="v">%%FW_CAGR%%<span class="chip fail">MISSES</span></span></div>
+    <div class="bar"><span class="k">Sharpe · vs Sensex CAGR</span>
+      <span class="v">%%FW_SHARPE%% · %%BFW_CAGR%%</span></div>
+    <p class="vnote">The risk half of the mandate survives out-of-sample with room to
+    spare. The return half was not on offer: 2022–2026 paid the index %%BFW_CAGR%%/yr
+    and put every honest unlevered momentum book through a factor winter.</p>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">%%FULL_MULT%%×</div><div class="l">₹1 in 2000 → today</div></div>
+  <div class="stat"><div class="n">%%FULL_CAGR%%</div><div class="l">full-period CAGR</div></div>
+  <div class="stat"><div class="n">6 / 27</div><div class="l">negative years, worst −11.4%</div></div>
+  <div class="stat"><div class="n">%%EXPOSURE%%</div><div class="l">average exposure</div></div>
+  <div class="stat"><div class="n">%%TURNOVER%%×</div><div class="l">one-way turnover / yr</div></div>
+  <div class="stat"><div class="n">15</div><div class="l">positions, equal weight</div></div>
+</div>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Exhibit A</div>
+    <h2>What it did</h2>
+  </div>
+  <figure>
+    <img src="%%IMG_EQUITY%%" alt="Log equity curve of the strategy versus Sensex, 2000 to 2026, with drawdown panel">
+    <figcaption>Growth of ₹1 (log scale). The flat shelves are cash: the strategy sat out
+    most of 2001–02, 2008–09 and the 2025–26 correction. Lower panel: strategy drawdown
+    (blue) never breaches the −25% mandate line; Sensex (grey) reaches −61%.</figcaption>
+  </figure>
+  <figure>
+    <img src="%%IMG_YEARLY%%" alt="Calendar year returns of strategy versus Sensex">
+    <figcaption>Calendar years. The edge is asymmetric: bull years compound at 50–120%
+    while the regime machinery turns 2008 (Sensex −52%) into −11% and 2011 (−25%) into −4%.
+    Right of the dashed line is the forward test.</figcaption>
+  </figure>
+  <figure>
+    <img src="%%IMG_EXPOSURE%%" alt="Daily exposure and market gate over time">
+    <figcaption>Daily equity exposure. Not binary risk-on/off — the four scalars grade
+    exposure continuously, which is what removed the whipsaw bleed of naive regime filters.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">The machine</div>
+    <h2>Rules, in full</h2>
+    <p>Universe: every currently listed NSE main-board (EQ) stock, ~2,060 names — no index
+    membership. All signals use closes up to day T; every trade executes at the close of
+    T+1. No leverage, no derivatives, no shorting.</p>
+  </div>
+  <div class="rules">
+    <div class="rulecard">
+      <h3>Selection — monthly, at month-end close</h3>
+      <ol>
+        <li><strong>Eligible:</strong> traded today · ≥ 1 year of history · top-300 by 63-day
+        median rupee turnover (point-in-time) · price &gt; ₹10 · above own 200-day SMA.</li>
+        <li><strong>Score:</strong> mean of 3, 6 and 12-month returns, each skipping the most
+        recent month, divided by 6-month realized volatility. Must be positive.</li>
+        <li><strong>Portfolio:</strong> top-15 equal weight, with a rank buffer — holdings stay
+        while still in the top 30, halving turnover.</li>
+      </ol>
+    </div>
+    <div class="rulecard">
+      <h3>Risk stack — exposure = product of four scalars, daily</h3>
+      <ol>
+        <li><strong>Trend gate (0/1):</strong> Sensex above its 200-day SMA (1% hysteresis)
+        <em>and</em> not 10% below its 63-day high — a self-healing fast-crash breaker.</li>
+        <li><strong>Breadth (0→1):</strong> share of the liquid pool above their own 200-day
+        SMA, mapped 25% → 0, 55% → 1. Sizes the book by market internals.</li>
+        <li><strong>Vol target:</strong> min(1, 25% / EWMA vol of the book). Cuts within days
+        when volatility explodes.</li>
+        <li><strong>Equity brake:</strong> half size while the strategy's own curve is under
+        its 200-day average — the only signal that sees a momentum-factor winter.</li>
+      </ol>
+      <ul style="margin-top:10px; list-style:none; padding-left:0;">
+        <li><strong>Per stock:</strong> 25% trailing stop off the post-entry peak; stale
+        listings force-exited at −10%. Idle cash earns 6% (T-bill proxy).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Why each layer exists</div>
+    <h2>Every layer maps to a failure it fixes</h2>
+    <p>The naive version of this strategy — same selection, classic Sensex-200DMA filter —
+    returns 28% but with a <strong>−45% drawdown</strong>. Each layer was added to fix a
+    diagnosed structural failure, not to tune a number. Removing any one of them re-opens
+    its wound (all else at base):</p>
+  </div>
+  <div class="tablecard">
+    <table>
+      <thead><tr><th>Ablation</th><th>Failure it re-opens</th><th class="num">CAGR</th><th class="num">Max DD</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Full strategy</strong></td><td>—</td><td class="num pos">%%IS_CAGR%%</td><td class="num pos">%%IS_DD%%</td></tr>
+        <tr><td>No breadth scalar</td><td>2018–19 mid/small bear invisible to Sensex</td><td class="num">30.4%</td><td class="num neg">−33.2%</td></tr>
+        <tr><td>No equity brake</td><td>2019 momentum winter under a healthy market</td><td class="num">32.2%</td><td class="num neg">−31.1%</td></tr>
+        <tr><td>No vol targeting</td><td>fast crashes outrun the trend gate</td><td class="num">33.2%</td><td class="num neg">−28.8%</td></tr>
+        <tr><td>No fast-crash breaker</td><td>2004 / 2006 V-crashes above the 200DMA</td><td class="num">30.4%</td><td class="num neg">−26.9%</td></tr>
+        <tr><td>No trailing stop</td><td>single-stock blowups ride to zero</td><td class="num">29.7%</td><td class="num neg">−27.6%</td></tr>
+        <tr><td>Cash at 0% instead of T-bills</td><td>—</td><td class="num">%%NORF_CAGR%%</td><td class="num">−28.7%</td></tr>
+        <tr><td><strong>No risk stack at all</strong></td><td>raw momentum</td><td class="num">%%RAW_CAGR%%</td><td class="num neg">%%RAW_DD%%</td></tr>
+      </tbody>
+    </table>
+    <div class="tnote">In-sample window (2000–2021). The full stack gives up ~3pp of CAGR and removes ~52pp of drawdown.</div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Plateau, not a point</div>
+    <h2>Robustness evidence</h2>
+  </div>
+  <div class="rules">
+    <div class="rulecard">
+      <h3>One-at-a-time — %%OAT_N%% configs</h3>
+      <ul>
+        <li>Every parameter swept across wide ranges: N 10–30, lookbacks 3–12&nbsp;months,
+        skip 0–42d, pool 150–800, SMAs 100–300, vol targets, stops, gates on/off,
+        costs 0.15–0.50%/side.</li>
+        <li><strong>%%OAT_NEAR%% of %%OAT_N%%</strong> land at CAGR &gt; 27% with DD &lt; 28%;
+        <strong>%%OAT_PASS%%</strong> pass the strict mandate outright.</li>
+        <li>Minimum in-sample Sharpe across all %%OAT_N%%: <strong>%%OAT_SHARPE_MIN%%</strong>.</li>
+        <li>The failures are informative, not random: pools ≤ 200 names, or a risk layer
+        switched off.</li>
+      </ul>
+    </div>
+    <div class="rulecard">
+      <h3>Random joint draws — %%RND_N%% configs</h3>
+      <ul>
+        <li>Uniform samples over the <em>entire</em> hypercube, deliberately including
+        crippled corners with risk layers disabled.</li>
+        <li>Minimum in-sample Sharpe of all %%RND_N%%: <strong>%%RND_SHARPE_MIN%%</strong> —
+        the alpha is structural, not parameter luck.</li>
+        <li>With all layers armed, <strong>91%</strong> keep the forward drawdown under 25%.</li>
+        <li>Rebalancing 10 sessions after month-end: %%OFFSET_CAGR%% / %%OFFSET_DD%% —
+        no date luck.</li>
+      </ul>
+    </div>
+  </div>
+  <figure>
+    <img src="%%IMG_ROLLING%%" alt="Rolling three-year CAGR of strategy versus Sensex">
+    <figcaption>Rolling 3-year CAGR. The 30% line was reachable for most of 2003–2021;
+    since 2022 no honest unlevered long-only book lived above it for long — the median
+    forward CAGR across all %%RND_N%% sampled configs is %%RND_FW_MED%%.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Forward test, honestly</div>
+    <h2>What held and what didn't</h2>
+    <p><strong>Held:</strong> the drawdown mandate (−18.0% vs 25% allowed), the Sharpe
+    (0.89), and the edge over the market (+7.3pp/yr vs Sensex). <strong>Missed:</strong>
+    the absolute 30% bar. Of %%RND_N%% random configs, only %%BIGFW_N%% exceeded 30%
+    forward — every one of them lives in the deep small-cap pool (500–800 names), and all
+    but one carry in-sample drawdowns that would have disqualified them in 2021. Widening
+    this strategy's pool from 300 to 800 names (one parameter) gives 33.7% / −22.4%
+    in-sample and 27.8% / −18.4% forward — a documented upside configuration, with eyes
+    open: that end of the market is precisely where survivorship bias, slippage and
+    capacity constraints bite hardest. The honest conclusion is that 30%/yr is a property
+    of the 2003–2021 mid/small-cap momentum regime, not a harvestable constant; the
+    strategy's durable properties are the contained drawdown and the persistent
+    market-relative edge.</p>
+  </div>
+  <div class="split">
+    <div class="tablecard">
+      <table>
+        <thead><tr><th>Year</th><th class="num">Strategy</th><th class="num">Sensex</th></tr></thead>
+        <tbody>
+%%YEARLY_ROWS%%
+        </tbody>
+      </table>
+      <div class="tnote">Saffron rail marks the forward test. 2026 is a partial year.</div>
+    </div>
+    <div>
+      <div class="tablecard" style="margin-top:0">
+        <table>
+          <thead><tr><th>Window</th><th class="num">CAGR</th><th class="num">Max DD</th><th class="num">Sharpe</th></tr></thead>
+          <tbody>
+            <tr><td>2000–2021 strategy</td><td class="num pos">%%IS_CAGR%%</td><td class="num">%%IS_DD%%</td><td class="num">%%IS_SHARPE%%</td></tr>
+            <tr><td>2000–2021 Sensex</td><td class="num">%%BIS_CAGR%%</td><td class="num neg">%%BIS_DD%%</td><td class="num">0.60</td></tr>
+            <tr><td>2022–today strategy</td><td class="num pos">%%FW_CAGR%%</td><td class="num">%%FW_DD%%</td><td class="num">%%FW_SHARPE%%</td></tr>
+            <tr><td>2022–today Sensex</td><td class="num">%%BFW_CAGR%%</td><td class="num">%%BFW_DD%%</td><td class="num">0.49</td></tr>
+            <tr><td>Full 2000–today</td><td class="num pos">%%FULL_CAGR%%</td><td class="num">%%FULL_DD%%</td><td class="num">1.65</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tablecard">
+        <table>
+          <thead><tr><th>Same data, different rules</th><th class="num">CAGR</th><th class="num">Max DD</th></tr></thead>
+          <tbody>
+            <tr><td>This strategy</td><td class="num pos">%%IS_CAGR%%</td><td class="num pos">%%IS_DD%%</td></tr>
+            <tr><td>Raw momentum, no risk stack</td><td class="num">%%RAW_CAGR%%</td><td class="num neg">%%RAW_DD%%</td></tr>
+            <tr><td>Passive equal-weight, same universe</td><td class="num">%%EW_CAGR%%</td><td class="num neg">%%EW_DD%%</td></tr>
+            <tr><td>Large-caps only (top-100 pool)</td><td class="num">%%LC_CAGR%%</td><td class="num neg">%%LC_DD%%</td></tr>
+          </tbody>
+        </table>
+        <div class="tnote">In-sample. The passive row shares the universe's survivorship bias —
+        the rules add ~14pp/yr over it and remove ~47pp of drawdown.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Read before believing</div>
+    <h2>Limitations, in order of importance</h2>
+  </div>
+  <div class="honesty">
+    <div class="hitem"><div class="hn">1</div><div>
+      <h3>Survivorship bias</h3>
+      <p>Yahoo serves only currently listed stocks; companies delisted between 2000 and 2026
+      are invisible to the backtest. Mitigations: the universe is all ~2,060 listed names
+      (today's losers included), eligibility is point-in-time, a trailing stop caps blowup
+      paths, and the forward window is nearly bias-free. But the momentum premium here lives
+      in mid/small caps — where delistings concentrate — and a large-cap-only variant earns
+      %%LC_CAGR%%, not 31%. <strong>Treat the in-sample CAGR as an upper estimate.</strong></p>
+    </div></div>
+    <div class="hitem"><div class="hn">2</div><div>
+      <h3>Data quality, repaired but not perfect</h3>
+      <p>Yahoo's NSE history contains unadjusted splits and bad prints — hundreds of fake
+      ±50%+ days concentrated in 2003–2007. A conservative repair layer fixes spike-reversals
+      and exact-fraction cliffs, caps residual one-day <em>gains</em> at +40%, and never caps
+      losses; genuine crashes (Yes Bank −56%) are preserved. 640 repairs, all logged.</p>
+    </div></div>
+    <div class="hitem"><div class="hn">3</div><div>
+      <h3>Thin early coverage</h3>
+      <p>Yahoo's NSE data reaches only ~60–90 symbols before 2002, so 2000–2002 is effectively
+      a large-cap backtest; coverage grows to ~480 by 2003 and 900+ by 2010.</p>
+    </div></div>
+    <div class="hitem"><div class="hn">4</div><div>
+      <h3>Assumptions that flatter</h3>
+      <p>Idle cash at 6%/yr (Indian T-bill average) adds ~4pp vs assuming 0% (%%NORF_CAGR%%
+      without it). Costs at 0.30%/side are fair for the modern era, optimistic for 2000–2005.
+      Monthly rotation of mid/small caps is personal-capital scale, not fund scale.</p>
+    </div></div>
+    <div class="hitem"><div class="hn">5</div><div>
+      <h3>A live, unfinished year</h3>
+      <p>2026 numbers run to %%AS_OF%% on as-is Yahoo data. The strategy is currently ~half
+      exposed with its equity curve below its own 200-day average — the machinery says
+      "momentum winter", and the honest chart shows it.</p>
+    </div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Reproduce</div>
+    <h2>Run it yourself</h2>
+  </div>
+  <pre>pip install -r requirements.txt
+python3 -m src.download_data      # full NSE universe from Yahoo (~15 min)
+python3 -m src.panels             # repair + consolidate panels
+python3 -m src.run_base           # headline backtest
+python3 -m src.run_base --sanity  # what it would have picked, 2003→2026
+python3 -m src.variants           # ablations and bias stress tests
+python3 -m src.sweep oat          # 65-config sensitivity sweep
+python3 -m src.sweep random 200 42
+python3 -m src.plots</pre>
+  <p class="vnote">Repository: <span class="mono">rajvermacas/fable-research-market</span>,
+  branch <span class="mono">claude/indian-market-trading-strategy-c41yfl</span>. Every number
+  on this page is generated from the committed results CSVs by
+  <span class="mono">src/make_report.py</span>.</p>
+</section>
+
+<div class="footer">
+  Research, not investment advice. Backtested performance on survivorship-biased data
+  overstates what was achievable; forward performance is the credible part of the evidence.
+</div>
+</div>

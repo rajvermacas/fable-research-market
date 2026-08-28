@@ -1,0 +1,6 @@
+# raw market data: ~270MB, refetchable via `python3 -m src.download_data`
+data/
+results/_sweep_tmp/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
